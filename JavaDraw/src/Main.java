@@ -15,6 +15,8 @@ public class Main {
     }
 
     private static DrawPanel canvas;
+    private static TokenRegistry REG;
+    private static TokenRegistry.EncodingConfig CFG;
 
     static class DrawPanel extends JPanel {
         java.util.List<Body> bodies = new java.util.ArrayList<>();
@@ -29,17 +31,6 @@ public class Main {
 
         java.util.List<Body> getBodies() {
             return bodies;
-        }
-
-        boolean removeBody(String name) {
-            for (int i = 0; i < bodies.size(); i++) {
-                if (name.equals(bodies.get(i).name)) {
-                    bodies.remove(i);
-                    repaint();
-                    return true;
-                }
-            }
-            return false;
         }
 
         @Override protected void paintComponent(Graphics g) {
@@ -70,6 +61,13 @@ public class Main {
 
     private static void createAndShowGUI() {
         canvas = new DrawPanel();
+
+        // Define encoding schemes
+        CFG = new TokenRegistry.EncodingConfig(100,199, 200,299, 300,699, 700,999);
+        REG = new TokenRegistry(CFG);
+        REG.registerKeywords("body","remove","clear","if","while");
+        REG.registerOperators("+","-","==","=","[");
+
 
         // ===== Window =====
         JFrame frame = new JFrame("JavaDraw");
@@ -158,6 +156,8 @@ public class Main {
                     if (trimmed.isEmpty() || trimmed.startsWith("//")) continue;
 
                     String[] tok = trimmed.split("\\s+");
+                    // Remove later for clean output
+                    outputBox1.append("      enc: " + formatEncodedTokens(tok) + "\n");
                     try {
                         if (tok[0].equalsIgnoreCase("body")) {
                             Body b = parseBodyLine(tok);
@@ -169,15 +169,13 @@ public class Main {
                         } else if (tok[0].equalsIgnoreCase("clear")) {
                             bodies.clear();
                             outputBox1.append("    * Cleared\n");
-                        }else {
+                        } else {
                             outputBox1.append("!   Not a command\n");
                         }
                     } catch (IllegalArgumentException ex) {
                         outputBox1.append("     ! Parse Error " + ex.getMessage() + "\n");
                     }
-
                 }
-
                 canvas.setBodies(bodies);
             }
         });
@@ -198,6 +196,19 @@ public class Main {
         if (parts.length == 0) return "EOL";
         return String.join(", ", parts) + ", EOL";
     }
+
+    // Will be removed for cleaner output
+    // Helper for tokenizeLine()
+    private static String formatEncodedTokens(String[] tokens) {
+        if (tokens == null || tokens.length == 0) return "";
+        StringBuilder sb = new StringBuilder();
+        for (String t : tokens) {
+            TokenRegistry.EncodedToken et = REG.encode(t);
+            sb.append(et.lexeme).append("(").append(et.code).append(") ");
+        }
+        return sb.toString().trim();
+    }
+
 
     // Parse: [body?] <name> <x> <y> <mass> <radiusPx> <color>
     static Body parseBodyLine(String[] tok) {
@@ -250,10 +261,6 @@ public class Main {
             return Color.WHITE;
         }
         return Color.WHITE;
-    }
-
-    public static java.util.List<Body> getBodies() {
-        return canvas.getBodies();
     }
 
     static void parseRemoveLine (String[] tok, java.util.List<Body> bodies, JTextArea outputArea) {
