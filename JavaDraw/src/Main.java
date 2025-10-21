@@ -85,7 +85,7 @@ public class Main {
         // Define encoding schemes
         CFG = new TokenRegistry.EncodingConfig(100,199, 200,299, 300,699, 700,999);
         REG = new TokenRegistry(CFG);
-        REG.registerKeywords("body","remove","clear","if","while","int","string");
+        REG.registerKeywords("body","remove","clear","if","while","int","string","double");
 
         REG.registerOperators("+","-","*","/","=",";","(",")");
 
@@ -248,7 +248,7 @@ public class Main {
                 .toArray(String[]::new);
     }
 
-    // Parse: [body?] <name> <x> <y> <mass> <radiusPx> <color>
+    // Parse: [body?] <name> <x> <y> <xv> <yv> <mass> <radiusPx> <color>
     static Body parseBodyLine(String[] tok, Interpreter interp) {
         if (tok.length < 9) {
             throw new IllegalArgumentException(
@@ -323,9 +323,12 @@ public class Main {
         var v = interp.symbolsView().get(lex);
         if (v == null)
             throw new IllegalArgumentException("Unknown identifier: " + lex);
-        if (v.t != Interpreter.Type.INT)
-            throw new IllegalArgumentException("Expected numeric/INT, got " + v.t + " for '" + lex + "'");
-        return v.i; // ints are fine for doubles
+        switch (v.t) {
+            case INT: return v.i;
+            case DOUBLE: return v.d;
+            default:
+                throw new IllegalArgumentException("Expected numeric got: " + v.t + " for '" + lex + "'");
+        }
     }
 
     private static String parseStringOrBare(String lex, Interpreter interp) {
