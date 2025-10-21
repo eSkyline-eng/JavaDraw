@@ -9,6 +9,26 @@ import java.awt.Color;
 import static java.lang.Double.parseDouble;
 import static java.lang.Integer.parseInt;
 
+/*******************************************************************
+ * Assignment 5 *
+ * *
+ * PROGRAMMER: Ethan Pate *
+ * COURSE: CS340 Prog Lang Design  *
+ * DATE: 10/15/25 *
+ * REQUIREMENT: Assignment 5 *
+ * *
+ * DESCRIPTION: *
+ * This assignment required creating an encoding system to identify
+ * keywords, operators, symbols, and literals.*
+ * *
+ * COPYRIGHT: *
+ * This code is copyright (c)2025 Ethan Pate and Dean Zeller.*
+ * *
+ * CREDITS: *
+ * ChatGPT *
+ * *
+ *******************************************************************/
+
 public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(Main::createAndShowGUI);
@@ -65,8 +85,9 @@ public class Main {
         // Define encoding schemes
         CFG = new TokenRegistry.EncodingConfig(100,199, 200,299, 300,699, 700,999);
         REG = new TokenRegistry(CFG);
-        REG.registerKeywords("body","remove","clear","if","while");
-        REG.registerOperators("+","-","==","=","[");
+        REG.registerKeywords("body","remove","clear","if","while","int","string");
+
+        REG.registerOperators("+","-","*","/","=",";","(",")");
 
 
         // ===== Window =====
@@ -136,9 +157,14 @@ public class Main {
         frame.getContentPane().add(mainPanel);
         frame.setVisible(true);
 
+
+
         runButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+
+                Interpreter interp = new Interpreter(REG, s -> outputBox1.append(s));
+
                 outputBox1.setText("");
 
                 String inputText = inputArea.getText();
@@ -152,15 +178,20 @@ public class Main {
 
                     outputBox1.append(lineNum + " >  " + tokenizeLine(line) + "\n");
 
-                    String trimmed = line.trim();
-                    if (trimmed.isEmpty() || trimmed.startsWith("//")) continue;
+                    String raw = line;
+                    int slash = raw.indexOf("//");
+                    if (slash >= 0) raw = raw.substring(0, slash); // drop comment tail
+                    String trimmed = raw.trim();
+                    if (trimmed.isEmpty()) continue;
 
-                    String[] tok = trimmed.split("\\s+");
+                    String[] tok = lexSplit(trimmed);
                     // Remove later for clean output
                     outputBox1.append("      enc: " + formatEncodedTokens(tok) + "\n");
+
                     try {
+
                         if (tok[0].equalsIgnoreCase("body")) {
-                            Body b = parseBodyLine(tok);
+                            Body b = parseBodyLine(tok, interp);
                             bodies.add(b);
                         } else if (tok[0].equalsIgnoreCase("help")){
                             outputBox1.append("List of commands: \n" + "    body <double x> <double y> <doublev vx> <double vy> <int radiusPx> <int mass> <color>");
@@ -170,7 +201,10 @@ public class Main {
                             bodies.clear();
                             outputBox1.append("    * Cleared\n");
                         } else {
-                            outputBox1.append("!   Not a command\n");
+                            boolean handled = interp.execTokens(tok);
+                            if (!handled) {
+                                outputBox1.append("!   Not a command\n");
+                            }
                         }
                     } catch (IllegalArgumentException ex) {
                         outputBox1.append("     ! Parse Error " + ex.getMessage() + "\n");
@@ -182,16 +216,10 @@ public class Main {
 
     }
 
+    // TODO: FIX STRING ISSUE
+
     private static String tokenizeLine(String line) {
-        String s = line;
-
-        s = s.replaceAll("(==|!=|<=|>=|px)", " $1 ");
-
-        s = s.replaceAll("([(){}\\[\\],;:+\\-*/%<>=!])", " $1 ");
-
-        String[] parts = Arrays.stream(s.trim().split("\\s+"))
-                .filter(tok -> !tok.isEmpty())
-                .toArray(String[]::new);
+        String[] parts = lexSplit(line);
 
         if (parts.length == 0) return "EOL";
         return String.join(", ", parts) + ", EOL";
@@ -209,9 +237,19 @@ public class Main {
         return sb.toString().trim();
     }
 
+    private static String[] lexSplit(String line) {
+        String s = line;
+        // space out multi-char ops first
+        s = s.replaceAll("(==|!=|<=|>=)", " $1 ");
+        // then single-char punctuation/operators
+        s = s.replaceAll("([(){}\\[\\],;:+\\-*/%<>=!])", " $1 ");
+        return Arrays.stream(s.trim().split("\\s+"))
+                .filter(tok -> !tok.isEmpty())
+                .toArray(String[]::new);
+    }
 
     // Parse: [body?] <name> <x> <y> <mass> <radiusPx> <color>
-    static Body parseBodyLine(String[] tok) {
+    static Body parseBodyLine(String[] tok, Interpreter interp) {
         if (tok.length < 9) {
             throw new IllegalArgumentException(
                     "Expected: body <name> <x> <y> <vx> <vy> <radiusPx> <mass> <color>");
@@ -220,14 +258,14 @@ public class Main {
             throw new IllegalArgumentException("Line must start with 'body'");
         }
 
-        String name = tok[1];
-        double x = parseDouble(tok[2]);
-        double y = parseDouble(tok[3]);
-        double xv = parseDouble(tok[4]);
-        double yv = parseDouble(tok[5]);
-        int r = parseInt(tok[6]);
-        double mass = parseDouble(tok[7]);
-        String color = tok[8];
+        String name = parseStringOrBare(tok[1], interp);
+        double x = parseNumOrVar(tok[2], interp);
+        double y = parseNumOrVar(tok[3], interp);
+        double xv = parseNumOrVar(tok[4], interp);
+        double yv = parseNumOrVar(tok[5], interp);
+        int r = (int)Math.round(parseNumOrVar(tok[6], interp));
+        double mass = parseNumOrVar(tok[7], interp);
+        String colorName = parseStringOrBare(tok[8], interp);
 
         if (r <= 0) throw new IllegalArgumentException("Radius at or below 0");
 
@@ -238,7 +276,8 @@ public class Main {
         b.r = r;
         b.xv = xv;
         b.yv = yv;
-        b.color = parseColor(color);
+
+        b.color = parseColor(colorName);
 
         return b;
     }
@@ -273,5 +312,29 @@ public class Main {
         if (!ok) {
             outputArea.append("!    Failed to remove " + tok[1] + "\n");
         }
+    }
+
+    private static double parseNumOrVar(String lex, Interpreter interp) {
+        // literal first
+        try { return Double.parseDouble(lex); }
+        catch (NumberFormatException ignore) { /* try symbol */ }
+
+        // then variable from interpreter symbols
+        var v = interp.symbolsView().get(lex);
+        if (v == null)
+            throw new IllegalArgumentException("Unknown identifier: " + lex);
+        if (v.t != Interpreter.Type.INT)
+            throw new IllegalArgumentException("Expected numeric/INT, got " + v.t + " for '" + lex + "'");
+        return v.i; // ints are fine for doubles
+    }
+
+    private static String parseStringOrBare(String lex, Interpreter interp) {
+        if (lex.length() >= 2 && lex.startsWith("\"") && lex.endsWith("\"")) {
+            lex = lex.substring(1, lex.length() - 1);
+        }
+
+        var v = interp.symbolsView().get(lex);
+        if (v != null && v.t != Interpreter.Type.INT) return v.s;
+        return lex;
     }
 }
