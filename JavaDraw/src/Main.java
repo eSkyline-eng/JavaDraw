@@ -5,27 +5,35 @@ import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.awt.Color;
+import java.time.LocalTime;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.Double.parseDouble;
 import static java.lang.Integer.parseInt;
 
 /*******************************************************************
- * Assignment 5 *
+ * Assignment 6 *
  * *
  * PROGRAMMER: Ethan Pate *
  * COURSE: CS340 Prog Lang Design  *
  * DATE: 10/15/25 *
- * REQUIREMENT: Assignment 5 *
+ * REQUIREMENT: Assignment 6 *
  * *
  * DESCRIPTION: *
- * This assignment required creating an encoding system to identify
- * keywords, operators, symbols, and literals.*
+ *      This program is called JavaDraw. It is an IDE with a custom
+ * programing language. To get started you can type help to get a
+ * list of commands.
+ * *
+ *      WHAT WORKS: int, double, string, animation
+ *      WHAT TO ADD: physics, MIP (if, while, for...)
+ * *
+ * *
  * *
  * COPYRIGHT: *
  * This code is copyright (c)2025 Ethan Pate and Dean Zeller.*
  * *
  * CREDITS: *
- * ChatGPT *
+ * Ethan Pate & ChatGPT*
  * *
  *******************************************************************/
 
@@ -37,6 +45,10 @@ public class Main {
     private static DrawPanel canvas;
     private static TokenRegistry REG;
     private static TokenRegistry.EncodingConfig CFG;
+
+    private static javax.swing.Timer animationTimer;
+    private static boolean running = false;
+    private static long lastTickNanos;
 
     static class DrawPanel extends JPanel {
         java.util.List<Body> bodies = new java.util.ArrayList<>();
@@ -189,7 +201,6 @@ public class Main {
                     outputBox1.append("      enc: " + formatEncodedTokens(tok) + "\n");
 
                     try {
-
                         if (tok[0].equalsIgnoreCase("body")) {
                             Body b = parseBodyLine(tok, interp);
                             bodies.add(b);
@@ -211,12 +222,11 @@ public class Main {
                     }
                 }
                 canvas.setBodies(bodies);
+                if (running) stopAnimation(); else startAnimation();
             }
         });
 
     }
-
-    // TODO: FIX STRING ISSUE
 
     private static String tokenizeLine(String line) {
         String[] parts = lexSplit(line);
@@ -340,4 +350,30 @@ public class Main {
         if (v != null && v.t != Interpreter.Type.INT) return v.s;
         return lex;
     }
+
+    private static void startAnimation() {
+        if (animationTimer != null && animationTimer.isRunning()) return;
+        lastTickNanos = System.nanoTime();
+        animationTimer = new javax.swing.Timer(16, e -> {
+            long now = System.nanoTime();
+            double dt = (now - lastTickNanos) / 1_000_000_000.0; // seconds
+            lastTickNanos = now;
+
+            // update positions (world units per second)
+            for (Body b : canvas.getBodies()) {
+                b.setX(b.getX() + b.getXv() * dt);
+                b.setY(b.getY() + b.getYv() * dt);
+            }
+            canvas.repaint();
+        });
+        animationTimer.start();
+        running = true;
+    }
+
+    private static void stopAnimation() {
+        if (animationTimer != null) animationTimer.stop();
+        running = false;
+    }
+
+
 }
