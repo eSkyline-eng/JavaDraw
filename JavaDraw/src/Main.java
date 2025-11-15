@@ -12,12 +12,12 @@ import static java.lang.Double.parseDouble;
 import static java.lang.Integer.parseInt;
 
 /*******************************************************************
- * Assignment 6 *
+ * Assignment 7 *
  * *
  * PROGRAMMER: Ethan Pate *
  * COURSE: CS340 Prog Lang Design  *
- * DATE: 10/15/25 *
- * REQUIREMENT: Assignment 6 *
+ * DATE: 10/31/25 *
+ * REQUIREMENT: Assignment 7 *
  * *
  * DESCRIPTION: *
  *      This program is called JavaDraw. It is an IDE with a custom
@@ -49,6 +49,13 @@ public class Main {
     private static javax.swing.Timer animationTimer;
     private static boolean running = false;
     private static long lastTickNanos;
+
+    /**********************************************************
+     * METHOD: DrawPanel *
+     * DESCRIPTION: Draws the bodies on the screen *
+     * PARAMETERS: Bodies object *
+     * RETURN VALUE: NA *
+     **********************************************************/
 
     static class DrawPanel extends JPanel {
         java.util.List<Body> bodies = new java.util.ArrayList<>();
@@ -91,6 +98,13 @@ public class Main {
         }
     }
 
+    /**********************************************************
+     * METHOD: createAndShowGUI *
+     * DESCRIPTION: Creates the window for the program *
+     * PARAMETERS: NA *
+     * RETURN VALUE: NA *
+     **********************************************************/
+
     private static void createAndShowGUI() {
         canvas = new DrawPanel();
 
@@ -99,7 +113,7 @@ public class Main {
         REG = new TokenRegistry(CFG);
         REG.registerKeywords("body","remove","clear","if","while","int","string","double");
 
-        REG.registerOperators("+","-","*","/","=",";","(",")");
+        REG.registerOperators("+","-","*","/","=",";","(",")","^");
 
 
         // ===== Window =====
@@ -228,6 +242,13 @@ public class Main {
 
     }
 
+    /**********************************************************
+     * METHOD: TokenizeLine *
+     * DESCRIPTION: Tokenizes each line *
+     * PARAMETERS: String line *
+     * RETURN VALUE: Array of tokens *
+     **********************************************************/
+
     private static String tokenizeLine(String line) {
         String[] parts = lexSplit(line);
 
@@ -247,16 +268,30 @@ public class Main {
         return sb.toString().trim();
     }
 
+    /**********************************************************
+     * METHOD: LexSplit *
+     * DESCRIPTION: Helper for tokenizer | For operators *
+     * PARAMETERS: String *
+     * RETURN VALUE: String array *
+     **********************************************************/
+
     private static String[] lexSplit(String line) {
         String s = line;
         // space out multi-char ops first
         s = s.replaceAll("(==|!=|<=|>=)", " $1 ");
         // then single-char punctuation/operators
-        s = s.replaceAll("([(){}\\[\\],;:+\\-*/%<>=!])", " $1 ");
+        s = s.replaceAll("([(){}\\[\\],;:+\\-*/%<>=!^])", " $1 ");
         return Arrays.stream(s.trim().split("\\s+"))
                 .filter(tok -> !tok.isEmpty())
                 .toArray(String[]::new);
     }
+
+    /**********************************************************
+     * METHOD: parseBodyLine *
+     * DESCRIPTION: When user types "body ..." this gets the values *
+     * PARAMETERS: tok, interpreter *
+     * RETURN VALUE: Body object *
+     **********************************************************/
 
     // Parse: [body?] <name> <x> <y> <xv> <yv> <mass> <radiusPx> <color>
     static Body parseBodyLine(String[] tok, Interpreter interp) {
@@ -292,6 +327,13 @@ public class Main {
         return b;
     }
 
+    /**********************************************************
+     * METHOD: parseColor *
+     * DESCRIPTION: Hard coded colors *
+     * PARAMETERS: String *
+     * RETURN VALUE: Color object *
+     **********************************************************/
+
     static Color parseColor(String c) {
         try {
             if (c.startsWith("#")) {
@@ -312,6 +354,13 @@ public class Main {
         return Color.WHITE;
     }
 
+    /**********************************************************
+     * METHOD: parseRemoveLine *
+     * DESCRIPTION: When user types "remove ..." this deletes the object *
+     * PARAMETERS: String[], body, outputArea *
+     * RETURN VALUE: NA *
+     **********************************************************/
+
     static void parseRemoveLine (String[] tok, java.util.List<Body> bodies, JTextArea outputArea) {
         if (tok.length != 2) {
             outputArea.append("!    Incorrect usage: remove <name>\n");
@@ -323,6 +372,13 @@ public class Main {
             outputArea.append("!    Failed to remove " + tok[1] + "\n");
         }
     }
+
+    /**********************************************************
+     * METHOD: parseNumOrVar *
+     * DESCRIPTION: if user uses variable they created later or just a number *
+     * PARAMETERS: String, interpreter *
+     * RETURN VALUE: double *
+     **********************************************************/
 
     private static double parseNumOrVar(String lex, Interpreter interp) {
         // literal first
@@ -340,6 +396,13 @@ public class Main {
                 throw new IllegalArgumentException("Expected numeric got: " + v.t + " for '" + lex + "'");
         }
     }
+
+    /**********************************************************
+     * METHOD: parseStringOrBare *
+     * DESCRIPTION: if user uses created string or not *
+     * PARAMETERS: String, interpreter *
+     * RETURN VALUE: String *
+     **********************************************************/
 
     private static String parseStringOrBare(String lex, Interpreter interp) {
         if (lex.length() >= 2 && lex.startsWith("\"") && lex.endsWith("\"")) {

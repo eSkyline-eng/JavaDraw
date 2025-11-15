@@ -42,11 +42,11 @@ public final class Interpreter {
     private enum State { S0, DECL_TYPE, DECL_NAME, ASSIGN_LHS, AFTER_EQ }
 
     // ---------- Columns (CONO cols) ----------
-    private enum Col { KW_INT, KW_STRING, KW_DOUBLE, SYMBOL, LITERAL, EQ, PLUS, LPAREN, RPAREN, SEMI, MINUS, MULT, DIV, OTHER }
+    private enum Col { KW_INT, KW_STRING, KW_DOUBLE, SYMBOL, LITERAL, EQ, PLUS, LPAREN, RPAREN, SEMI, MINUS, MULT, DIV, EXP, OTHER }
 
     // codes we care about (from registry)
     private final int codeKW_Int, codeKW_String, codeKW_Double;
-    private final int opEq, opPlus, opLParen, opRParen, opSemi, opMinus, opMult, opDiv;
+    private final int opEq, opPlus, opLParen, opRParen, opSemi, opMinus, opMult, opDiv, opExp;
 
     // pending declaration / assignment
     private String pendingName = null;
@@ -78,11 +78,13 @@ public final class Interpreter {
         opMinus = opt(reg.operators().get("-"));
         opMult = opt(reg.operators().get("*"));
         opDiv = opt(reg.operators().get("/"));
+        opExp = opt(reg.operators().get("^"));
 
         prec.put(opPlus, 10);
         prec.put(opMinus, 10);
         prec.put(opMult, 10);
         prec.put(opDiv, 10);
+        prec.put(opExp, 10);
     }
 
     private static int opt(Integer x){ return x==null ? Integer.MIN_VALUE : x; }
@@ -152,10 +154,11 @@ public final class Interpreter {
                     if (col==Col.MINUS)    { pushOp(opMinus); break; }
                     if (col==Col.MULT)     { pushOp(opMult); break; }
                     if (col==Col.DIV)      { pushOp(opDiv); break; }
+                    if (col==Col.EXP)      { pushOp(opExp); break; }
                     return error("Unexpected token in expression", et);
             }
         }
-        // no trailing ';' → soft error/recovery
+        // no trailing ';' soft error/recovery
         if (!ops.isEmpty() || !vals.isEmpty()) {
             try { Value v = reduceAll(); commitValue(v); }
             catch (Exception e){ log.accept("!   Incomplete statement (missing ';')\n"); }
@@ -280,7 +283,7 @@ public final class Interpreter {
         int op = ops.pop();
         Value b = vals.pop();
         Value a = vals.pop();
-        if (op==opPlus || op==opMinus || op==opMult || op==opDiv) {
+        if (op==opPlus || op==opMinus || op==opMult || op==opDiv || op==opExp) {
             if (!isNumber(a) || !isNumber(b)) {
                 if (op==opPlus && (a.t==Type.STRING || b.t==Type.STRING)) {
                     String sa = (a.t==Type.STRING)?a.s:String.valueOf(a.i);
@@ -291,13 +294,24 @@ public final class Interpreter {
                 }
                 return;
             }
-            double ad = asDouble(a), bd = asDouble(b), rd;
-            if (op==opPlus) rd = ad + bd;
-            else if (op==opMinus) rd = ad - bd;
-            else if (op==opMult) rd = ad * bd;
-            else rd = ad / bd;
-            // always keep result as DOUBLE (simple, safe)
-            vals.push(Value.ofDouble(rd));
+            if (a.t == Type.DOUBLE) {
+                double ad = asDouble(a), bd = asDouble(b), rd;
+                if (op==opPlus) rd = ad + bd;
+                else if (op==opMinus) rd = ad - bd;
+                else if (op==opMult) rd = ad * bd;
+                else if (op==opExp) rd = Math.pow(ad, bd);
+                else rd = ad / bd;
+                vals.push(Value.ofDouble(rd));
+            } else {
+                int ad = asInt(a), bd = asInt(b), rd;
+                if (op==opPlus) rd = ad + bd;
+                else if (op==opMinus) rd = ad - bd;
+                else if (op==opMult) rd = ad * bd;
+                else if (op==opExp) rd = (int) Math.pow(ad, bd);
+                else rd = ad / bd;
+                vals.push(Value.ofInt(rd));
+            }
+
             return;
         }
     }
@@ -312,6 +326,7 @@ public final class Interpreter {
 
     private static boolean isNumber(Value v) { return v.t==Type.INT || v.t==Type.DOUBLE; }
     private static double asDouble(Value v) { return v.t==Type.DOUBLE ? v.d : v.i; }
+    private static int asInt(Value v) { return v.t==Type.INT ? v.i : v.i; }
 
     private int parseIntSafe(String s){
         try { return Integer.parseInt(s); }
@@ -347,7 +362,9 @@ public final class Interpreter {
         if (c==opRParen)      return Col.RPAREN;
         if (c==opSemi)        return Col.SEMI;
         if (c==opMinus)       return Col.MINUS;
+        if (c==opMult)        return Col.MULT;
         if (c==opDiv)         return Col.DIV;
+        if (c==opExp)         return Col.EXP;
 
         switch (et.category){
             case SYMBOL:  return Col.SYMBOL;
